@@ -13,12 +13,10 @@ class LoginViewController: UITableViewController {
 
     struct InputValues {
         let value: String
-        var required: Bool
         var valid: Bool
 
-        internal init(value: String, required: Bool = true, valid: Bool = false) {
+        internal init(value: String, valid: Bool = false) {
             self.value = value
-            self.required = required
             self.valid = valid
         }
     }
@@ -41,11 +39,11 @@ class LoginViewController: UITableViewController {
 
     @IBOutlet weak var submitButton: UIButton!
 
-    let firstNameSubject = PublishSubject<InputValues>()
-    let lastNameSubject = PublishSubject<InputValues>()
-    let emailSubject = PublishSubject<InputValues>()
-    let countrySubject = PublishSubject<InputValues>()
-    let zipcodeSubject = PublishSubject<InputValues>()
+    let firstNameSubject    = PublishSubject<InputValues>()
+    let lastNameSubject     = PublishSubject<InputValues>()
+    let emailSubject        = PublishSubject<InputValues>()
+    let countrySubject      = PublishSubject<InputValues>()
+    let zipcodeSubject      = PublishSubject<InputValues>()
 
     let disposeBag = DisposeBag()
 
@@ -53,20 +51,25 @@ class LoginViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         configInputFields()
+        configureSubmitButton()
     }
 
     @objc func submitButtonTapped(_ sender: UIButton) {
-//        Observable.combineLatest(firstNameSubject,
-//                                 lastNameSubject,
-//                                 emailSubject,
-//                                 countrySubject,
-//                                 zipcodeSubject)
-
+        print("Success!")
     }
 
-    private func configureSubmitButton(with validator: @escaping InputValidator) {
-        // submitButton.addTarget(self, action: #selector(submitButtonTapped), for: .touchUpInside)
+    private func configureSubmitButton() {
+        submitButton.addTarget(self, action: #selector(submitButtonTapped), for: .touchUpInside)
+        let allValidObserver = Observable.combineLatest(firstNameSubject,
+                                                        lastNameSubject,
+                                                        emailSubject,
+                                                        countrySubject,
+                                                        zipcodeSubject) { (firstname, lastname, email, country, zipcode) -> Bool in
+            return firstname.valid && lastname.valid && email.valid && country.valid && zipcode.valid
+        }.startWith(false)
 
+        allValidObserver.bind(to: submitButton.rx.isEnabled).disposed(by: disposeBag)
+        allValidObserver.map { $0 ? 1 : 0.5 }.bind(to: submitButton.rx.alpha).disposed(by: disposeBag)
     }
 
     private func configInputFields() {
@@ -96,20 +99,25 @@ class LoginViewController: UITableViewController {
                                      errorLabel: UILabel,
                                      subject: PublishSubject<InputValues>,
                                      validator: @escaping InputValidator) {
+        let tempSubject = PublishSubject<InputValues>()
         textField.rx.text
             .orEmpty
-            .subscribe { subject.onNext(InputValues(value: $0)) }
+            .subscribe { tempSubject.onNext(InputValues(value: $0)) }
             .disposed(by: disposeBag)
 
-        subject
+        tempSubject
             .map { try validator($0.value) }
             .catch {
                 errorLabel.isHidden = false
                 errorLabel.text = $0.localizedDescription
+                subject.onNext(InputValues(value: "", valid: false))
                 throw $0
             }
             .retry()
-            .subscribe { _ in errorLabel.isHidden = true }
+            .subscribe { inputValues in
+                errorLabel.isHidden = true
+                subject.onNext(InputValues(value: inputValues.element!, valid: true))
+            }
             .disposed(by: disposeBag)
     }
 }
