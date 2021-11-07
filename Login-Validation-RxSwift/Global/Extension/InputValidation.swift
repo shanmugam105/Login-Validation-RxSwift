@@ -44,7 +44,7 @@ struct InputValidationService {
             let zipCodeUnwrapped = zipCode,
             let zipCode = Int(zipCodeUnwrapped)
         else { throw ValidationError.zipCodeMustBeNumeric }
-        guard zipCode > 1_0000 - 1 else { throw ValidationError.zipCodeMustBeEnter }
+        guard zipCode > 999999 else { throw ValidationError.zipCodeMustBeEnter }
         return String(zipCode)
     }
 }
